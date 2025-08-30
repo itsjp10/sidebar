@@ -1,5 +1,6 @@
 import React, { useContext, createContext, useState, useRef, useEffect } from "react";
-import { ChevronLast, ChevronFirst, MoreHorizontal, LogOut, Folder, FolderOpen, ChartNoAxesGantt, Plus } from "lucide-react";
+import { ChevronLast, ChevronFirst, MoreHorizontal, LogOut, ChartNoAxesGantt, Plus } from "lucide-react";
+import { createPortal } from "react-dom";
 
 /**
  * Reusable Sidebar System (JS + React + Tailwind + lucide-react)
@@ -66,14 +67,14 @@ export function SidebarSection({ title, children }) {
 
       {/* Scroll container with thin scrollbar that activates on hover */}
       <div
-        className="mt-1 px-3 max-h-[28vh] overflow-y-auto
+        className={`mt-1 ${expanded ? "px-3" : "px-2"} max-h-[28vh] overflow-y-auto overflow-x-hidden
           scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent
           scrollbar-thumb-rounded-full
           hover:scrollbar-thumb-gray-400
           [&::-webkit-scrollbar]:w-1
           [&::-webkit-scrollbar-track]:bg-transparent
           [&::-webkit-scrollbar-thumb]:bg-transparent
-          group-hover/section:[&::-webkit-scrollbar-thumb]:bg-gray-300"
+          group-hover/section:[&::-webkit-scrollbar-thumb]:bg-gray-300`}
       >
         <ul className="space-y-1">{children}</ul>
       </div>
@@ -139,13 +140,13 @@ export function Sidebar({
           fixed top-0 left-0 z-50 h-screen bg-white
           transform transition-all duration-300 will-change-transform
           ${expanded ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
-          ${expanded ? "w-64" : "w-18"} ${expanded ? "md:w-64" : "md:w-18"}
-          border-r shadow-sm
+          ${expanded ? "w-64" : "w-[72px]"} ${expanded ? "md:w-64" : "md:w-[72px]"}
+          border-r border-gray-200/60 shadow-sm
         `}
       >
-        <nav className="h-full flex flex-col bg-white">
+        <nav className="h-full flex flex-col bg-white overflow-x-hidden">
           {/* Header */}
-          <div className="p-4 pb-2 flex justify-between items-center">
+          <div className={`pb-2 flex justify-between items-center ${expanded ? "p-4" : "px-2 pt-4"}`}>
             <img
               src={logoSrc}
               className={`overflow-hidden transition-all ${expanded ? "w-24" : "w-0"}`}
@@ -166,11 +167,11 @@ export function Sidebar({
 
           {/* Items */}
           <SidebarProvider expanded={expanded} setExpanded={setExpanded}>
-            <ul className="flex-1 px-3">{children}</ul>
+            <ul className={`flex-1 ${expanded ? "px-3" : "px-0"}`}>{children}</ul>
           </SidebarProvider>
 
           {/* Footer / user */}
-          <div className="border-t flex p-3">
+          <div className="border-t border-gray-200/60 flex p-3">
             <img
               src={`https://ui-avatars.com/api/?background=c7d2fe&color=3730a3&bold=true&name=${encodeURIComponent(displayName)}`}
               alt="Avatar"
@@ -201,22 +202,37 @@ export function Sidebar({
 // SidebarItem (generic)
 // ------------------------------------
 export function SidebarItem({
-  icon, // a lucide node, e.g. <Folder />
+  icon,
   text,
   active,
   alert,
+  tipo,
   onClick,
+  formatoID,
+  onRenombrar,
+  editar = true
 }) {
-  const { expanded, setExpanded } = useSidebar();
+  const { expanded, setExpanded } = useContext(SidebarContext);
 
-  // Close on navigate in mobile
-  const handleNavigate = (e) => {
-    onClick?.(e);
+  const handleNavigate = (e, extraFn) => {
+    extraFn?.(e);
     const isMobile = window.matchMedia("(max-width: 767px)").matches;
     if (isMobile) setExpanded(false);
   };
 
-  // Label without icon (section label line)
+  if (tipo === "formatoItem" && expanded) {
+    return (
+      <SidebarFormatoItem
+        text={text}
+        active={active}
+        onClick={(e) => handleNavigate(e, onClick)}
+        formatoID={formatoID}
+        onRenombrar={onRenombrar}
+        editar={editar}
+      />
+    );
+  }
+
   if (!icon) {
     return (
       <li className={`py-2 my-1 ${expanded ? "pl-3" : "pl-0"}`}>
@@ -227,38 +243,80 @@ export function SidebarItem({
     );
   }
 
+  // ---- Tooltip simple sin Portal (fixed) ----
+  const triggerRef = useRef(null);
+  const [tt, setTt] = useState({ show: false, top: 0, left: 0 });
+
+  const showTooltip = () => {
+    if (!triggerRef.current) return;
+    const r = triggerRef.current.getBoundingClientRect();
+    const GAP = 10;
+    setTt({ show: true, top: r.top + r.height / 2, left: r.right + GAP });
+  };
+  const hideTooltip = () => setTt((s) => ({ ...s, show: false }));
+
+  useEffect(() => {
+    if (!tt.show) return;
+    const onScrollOrResize = () => {
+      if (!triggerRef.current) return hideTooltip();
+      const r = triggerRef.current.getBoundingClientRect();
+      const GAP = 10;
+      setTt({ show: true, top: r.top + r.height / 2, left: r.right + GAP });
+    };
+    const onEsc = (e) => e.key === "Escape" && hideTooltip();
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [tt.show]);
+
   return (
-    <li
-      className={`
-        relative flex items-center py-2 px-3 my-1 h-10
+    <>
+      <li
+        className={`
+        relative flex items-center py-2 ${expanded ? "px-3" : "px-3"} my-1 h-10 min-w-0
         font-medium rounded-md cursor-pointer transition-colors group
         text-black font-inter
         ${active ? "bg-gradient-to-tr from-indigo-200 to-indigo-100" : "hover:bg-indigo-50"}
       `}
-      onClick={handleNavigate}
-    >
-      {icon}
-      <span className={`overflow-hidden transition-all text-black font-inter ${expanded ? "w-52 ml-3" : "w-0"}`}>
-        {text}
-      </span>
-      {alert && <div className={`absolute right-2 w-2 h-2 rounded bg-indigo-400 ${expanded ? "" : "top-2"}`} />}
-
-      {/* Tooltip when collapsed */}
-      {!expanded && (
-        <div
-          className={`
-            absolute left-full rounded-md px-2 py-1 ml-6 w-max
-            bg-indigo-100 text-black text-sm font-inter
-            invisible opacity-20 -translate-x-3 transition-all
-            group-hover:visible group-hover:opacity-100 group-hover:translate-x-0
-          `}
-        >
-          {text}
+        onClick={(e) => handleNavigate(e, onClick)}
+        onMouseEnter={() => !expanded && showTooltip()}
+        onMouseLeave={hideTooltip}
+      >
+        {/* Icono siempre visible */}
+        <div ref={triggerRef} className="shrink-0 w-6 h-6 grid place-items-center">
+          {icon}
         </div>
-      )}
-    </li>
+
+        {/* Texto solo cuando expandido */}
+        <span className={`overflow-hidden transition-all text-black font-inter ${expanded ? "w-52 ml-3" : "w-0 ml-0"}`}>
+          {text}
+        </span>
+
+        {alert && <div className={`absolute right-2 w-2 h-2 rounded bg-indigo-400 ${expanded ? "" : "top-2"}`} />}
+      </li>
+
+      {/* Tooltip fuera del sidebar con Portal (NO se recorta) */}
+      {!expanded && tt.show &&
+        createPortal(
+          <div
+            className="fixed z-[1000] pointer-events-none bg-indigo-100 text-black text-sm font-inter rounded-md ml-7 px-2 py-1 shadow"
+            style={{ top: tt.top, left: tt.left, transform: "translateY(-50%)" }}
+          >
+            {text}
+          </div>,
+          document.body
+        )
+      }
+    </>
   );
+
 }
+
 
 // ------------------------------------
 // SidebarFormatoItem (rename-capable row)

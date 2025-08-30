@@ -29,19 +29,19 @@ export default function App() {
         {/* A top-level quick actions area */}
         <SidebarSection title="General">
           <SidebarItem
-            icon={<FolderOpen className="w-5 h-5" />}
+            icon={<FolderOpen/>}
             text="Panel"
             active={activeId === "panel"}
             onClick={() => setActiveId("panel")}
           />
           <SidebarItem
-            icon={<Folder className="w-5 h-5" />}
+            icon={<Folder/>}
             text="Documentos"
             active={activeId === "docs"}
             onClick={() => setActiveId("docs")}
           />
           <SidebarItem
-            icon={<Plus className="w-5 h-5" />}
+            icon={<Plus/>}
             text="Nuevo"
             onClick={() => alert("Crear nuevo")}
           />
